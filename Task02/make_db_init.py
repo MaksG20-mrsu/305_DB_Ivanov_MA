@@ -1,106 +1,104 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-import os
 import csv
-import sqlite3
-from datetime import datetime
+import re
+import os
 
 
-def ensure_dataset_directory():
-    """Проверяет существование каталога dataset и создает его если нужно"""
-    if not os.path.exists('dataset'):
-        print("Warning: 'dataset' directory not found. Creating it...")
-        os.makedirs('dataset')
-        print("Please place your data files (movies.txt, ratings.txt, tags.txt, users.txt) in the 'dataset' directory")
-        return False
-    return True
+def read_movies_data():
+    """Чтение данных о фильмах из CSV файла"""
+    movies_data = []
+    with open('dataset/movies.csv', 'r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            # Извлекаем год из названия фильма
+            title = row['title']
+            year_match = re.search(r'\((\d{4})\)', title)
+            year = year_match.group(1) if year_match else 'NULL'
+
+            # Убираем год из названия
+            clean_title = re.sub(r'\s*\(\d{4}\)', '', title)
+
+            movies_data.append({
+                'id': row['movieId'],
+                'title': clean_title.replace("'", "''"),
+                'year': year,
+                'genres': row['genres'].replace("'", "''")
+            })
+    return movies_data
 
 
-def check_data_files():
-    """Проверяет наличие всех необходимых файлов данных"""
-    required_files = ['movies.txt', 'ratings.txt', 'tags.txt', 'users.txt']
-    missing_files = []
-
-    for filename in required_files:
-        filepath = os.path.join('dataset', filename)
-        if not os.path.exists(filepath):
-            missing_files.append(filename)
-
-    if missing_files:
-        print("Error: Missing data files:")
-        for filename in missing_files:
-            print(f"  - {filename}")
-        print("\nPlease make sure all data files are in the 'dataset' directory")
-        return False
-
-    return True
+def read_ratings_data():
+    """Чтение данных о рейтингах из CSV файла"""
+    ratings_data = []
+    with open('dataset/ratings.csv', 'r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            ratings_data.append({
+                'user_id': row['userId'],
+                'movie_id': row['movieId'],
+                'rating': row['rating'],
+                'timestamp': row['timestamp']
+            })
+    return ratings_data
 
 
-def read_dataset_file(filename):
-    """Чтение файла dataset и возвращение данных"""
-    filepath = os.path.join('dataset', filename)
-
-    # Проверка существования файла
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Data file not found: {filepath}")
-
-    data = []
-    try:
-        with open(filepath, 'r', encoding='utf-8') as file:
-            reader = csv.reader(file, delimiter='|')
-            for row in reader:
-                # Пропускаем пустые строки
-                if row and any(field.strip() for field in row):
-                    data.append(row)
-        print(f"  Read {len(data)} rows from {filename}")
-    except Exception as e:
-        print(f"Error reading {filename}: {e}")
-        raise
-
-    return data
+def read_tags_data():
+    """Чтение данных о тегах из CSV файла"""
+    tags_data = []
+    with open('dataset/tags.csv', 'r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            tags_data.append({
+                'user_id': row['userId'],
+                'movie_id': row['movieId'],
+                'tag': row['tag'].replace("'", "''"),
+                'timestamp': row['timestamp']
+            })
+    return tags_data
 
 
-def escape_sql_value(value):
-    """Экранирование значений для SQL"""
-    if value is None:
-        return 'NULL'
-
-    value_str = str(value).replace("'", "''")
-    return f"'{value_str}'"
+def read_users_data():
+    """Чтение данных о пользователях из текстового файла"""
+    users_data = []
+    with open('dataset/users.txt', 'r', encoding='utf-8') as file:
+        for line in file:
+            parts = line.strip().split('|')
+            if len(parts) >= 6:
+                users_data.append({
+                    'id': parts[0],
+                    'name': parts[1].replace("'", "''"),
+                    'email': parts[2].replace("'", "''"),
+                    'gender': parts[3],
+                    'register_date': parts[4],
+                    'occupation': parts[5].replace("'", "''") if len(parts) > 5 else ''
+                })
+    return users_data
 
 
 def generate_sql_script():
-    """Генерация SQL скрипта для создания и заполнения БД"""
+    """Генерация SQL скрипта для создания и заполнения базы данных"""
 
-    print("Reading data files...")
+    # Чтение данных
+    print("Чтение данных из файлов...")
+    movies = read_movies_data()
+    ratings = read_ratings_data()
+    tags = read_tags_data()
+    users = read_users_data()
 
-    # Чтение данных из файлов
-    movies_data = read_dataset_file('movies.txt')
-    ratings_data = read_dataset_file('ratings.txt')
-    tags_data = read_dataset_file('tags.txt')
-    users_data = read_dataset_file('users.txt')
-
-    sql_script = []
-
-    # Добавляем заголовок с комментарием
-    sql_script.append("-- SQL script generated automatically")
-    sql_script.append(f"-- Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    sql_script.append("")
+    # Создание SQL скрипта
+    sql_content = []
 
     # Удаление существующих таблиц
-    sql_script.append("-- Drop existing tables if they exist")
-    sql_script.append("DROP TABLE IF EXISTS movies;")
-    sql_script.append("DROP TABLE IF EXISTS ratings;")
-    sql_script.append("DROP TABLE IF EXISTS tags;")
-    sql_script.append("DROP TABLE IF EXISTS users;")
-    sql_script.append("")
+    sql_content.append("-- Удаление существующих таблиц")
+    sql_content.append("DROP TABLE IF EXISTS movies;")
+    sql_content.append("DROP TABLE IF EXISTS ratings;")
+    sql_content.append("DROP TABLE IF EXISTS tags;")
+    sql_content.append("DROP TABLE IF EXISTS users;")
+    sql_content.append("")
 
     # Создание таблиц
-    sql_script.append("-- Create tables")
-
-    # Таблица movies
-    sql_script.append("""
+    sql_content.append("-- Создание таблиц")
+    sql_content.append("""
 CREATE TABLE movies (
     id INTEGER PRIMARY KEY,
     title TEXT NOT NULL,
@@ -109,10 +107,9 @@ CREATE TABLE movies (
 );
 """)
 
-    # Таблица ratings
-    sql_script.append("""
+    sql_content.append("""
 CREATE TABLE ratings (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     movie_id INTEGER NOT NULL,
     rating REAL NOT NULL,
@@ -121,10 +118,9 @@ CREATE TABLE ratings (
 );
 """)
 
-    # Таблица tags
-    sql_script.append("""
+    sql_content.append("""
 CREATE TABLE tags (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     movie_id INTEGER NOT NULL,
     tag TEXT NOT NULL,
@@ -133,128 +129,69 @@ CREATE TABLE tags (
 );
 """)
 
-    # Таблица users
-    sql_script.append("""
+    sql_content.append("""
 CREATE TABLE users (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
-    email TEXT,
+    email TEXT NOT NULL,
     gender TEXT,
     register_date TEXT,
     occupation TEXT
 );
 """)
-
-    sql_script.append("")
+    sql_content.append("")
 
     # Вставка данных в таблицу movies
-    print("Generating INSERT statements for movies...")
-    sql_script.append("-- Insert data into movies table")
-    for i, row in enumerate(movies_data):
-        if len(row) >= 4:
-            try:
-                movie_id = int(row[0])
-                title = escape_sql_value(row[1])
-                year = int(row[2]) if row[2].strip() and row[2].strip().isdigit() else 'NULL'
-                genres = escape_sql_value(row[3]) if row[3].strip() else 'NULL'
-
-                sql_script.append(
-                    f"INSERT INTO movies (id, title, year, genres) VALUES ({movie_id}, {title}, {year}, {genres});")
-            except (ValueError, IndexError) as e:
-                print(f"Warning: Skipping invalid movie data at row {i}: {row} - Error: {e}")
-
-    sql_script.append("")
+    sql_content.append("-- Вставка данных в таблицу movies")
+    for movie in movies:
+        sql = f"INSERT INTO movies (id, title, year, genres) VALUES ({movie['id']}, '{movie['title']}', {movie['year']}, '{movie['genres']}');"
+        sql_content.append(sql)
+    sql_content.append("")
 
     # Вставка данных в таблицу users
-    print("Generating INSERT statements for users...")
-    sql_script.append("-- Insert data into users table")
-    for i, row in enumerate(users_data):
-        if len(row) >= 6:
-            try:
-                user_id = int(row[0])
-                name = escape_sql_value(row[1])
-                email = escape_sql_value(row[2]) if row[2].strip() else 'NULL'
-                gender = escape_sql_value(row[3]) if row[3].strip() else 'NULL'
-                register_date = escape_sql_value(row[4]) if row[4].strip() else 'NULL'
-                occupation = escape_sql_value(row[5]) if row[5].strip() else 'NULL'
-
-                sql_script.append(
-                    f"INSERT INTO users (id, name, email, gender, register_date, occupation) VALUES ({user_id}, {name}, {email}, {gender}, {register_date}, {occupation});")
-            except (ValueError, IndexError) as e:
-                print(f"Warning: Skipping invalid user data at row {i}: {row} - Error: {e}")
-
-    sql_script.append("")
+    sql_content.append("-- Вставка данных в таблицу users")
+    for user in users:
+        sql = f"INSERT INTO users (id, name, email, gender, register_date, occupation) VALUES ({user['id']}, '{user['name']}', '{user['email']}', '{user['gender']}', '{user['register_date']}', '{user['occupation']}');"
+        sql_content.append(sql)
+    sql_content.append("")
 
     # Вставка данных в таблицу ratings
-    print("Generating INSERT statements for ratings...")
-    sql_script.append("-- Insert data into ratings table")
-    for i, row in enumerate(ratings_data):
-        if len(row) >= 5:
-            try:
-                rating_id = int(row[0])
-                user_id = int(row[1])
-                movie_id = int(row[2])
-                rating = float(row[3])
-                timestamp = int(row[4])
-
-                sql_script.append(
-                    f"INSERT INTO ratings (id, user_id, movie_id, rating, timestamp) VALUES ({rating_id}, {user_id}, {movie_id}, {rating}, {timestamp});")
-            except (ValueError, IndexError) as e:
-                print(f"Warning: Skipping invalid rating data at row {i}: {row} - Error: {e}")
-
-    sql_script.append("")
+    sql_content.append("-- Вставка данных в таблицу ratings")
+    for rating in ratings:
+        sql = f"INSERT INTO ratings (user_id, movie_id, rating, timestamp) VALUES ({rating['user_id']}, {rating['movie_id']}, {rating['rating']}, {rating['timestamp']});"
+        sql_content.append(sql)
+    sql_content.append("")
 
     # Вставка данных в таблицу tags
-    print("Generating INSERT statements for tags...")
-    sql_script.append("-- Insert data into tags table")
-    for i, row in enumerate(tags_data):
-        if len(row) >= 5:
-            try:
-                tag_id = int(row[0])
-                user_id = int(row[1])
-                movie_id = int(row[2])
-                tag = escape_sql_value(row[3])
-                timestamp = int(row[4])
+    sql_content.append("-- Вставка данных в таблицу tags")
+    for tag in tags:
+        sql = f"INSERT INTO tags (user_id, movie_id, tag, timestamp) VALUES ({tag['user_id']}, {tag['movie_id']}, '{tag['tag']}', {tag['timestamp']});"
+        sql_content.append(sql)
 
-                sql_script.append(
-                    f"INSERT INTO tags (id, user_id, movie_id, tag, timestamp) VALUES ({tag_id}, {user_id}, {movie_id}, {tag}, {timestamp});")
-            except (ValueError, IndexError) as e:
-                print(f"Warning: Skipping invalid tag data at row {i}: {row} - Error: {e}")
+    # Запись SQL скрипта в файл
+    with open('db_init.sql', 'w', encoding='utf-8') as file:
+        file.write('\n'.join(sql_content))
 
-    sql_script.append("")
-    sql_script.append("-- End of SQL script")
-
-    return '\n'.join(sql_script)
-
-
-def main():
-    """Основная функция"""
-    print("Starting SQL script generation...")
-
-    # Проверка каталога dataset
-    if not ensure_dataset_directory():
-        print("Please create the 'dataset' directory and place your data files there.")
-        return
-
-    # Проверка наличия файлов данных
-    if not check_data_files():
-        return
-
-    try:
-        # Генерация SQL скрипта
-        sql_content = generate_sql_script()
-
-        # Запись SQL скрипта в файл
-        with open('db_init.sql', 'w', encoding='utf-8') as sql_file:
-            sql_file.write(sql_content)
-
-        print("\nSQL script 'db_init.sql' has been generated successfully!")
-        print(f"Script contains {len(sql_content.splitlines())} lines")
-
-    except Exception as e:
-        print(f"Error during SQL script generation: {e}")
-        return
+    print(f"SQL скрипт создан успешно!")
+    print(f"Обработано:")
+    print(f"  - Фильмы: {len(movies)} записей")
+    print(f"  - Пользователи: {len(users)} записей")
+    print(f"  - Рейтинги: {len(ratings)} записей")
+    print(f"  - Теги: {len(tags)} записей")
 
 
 if __name__ == "__main__":
-    main()
+    # Проверка существования файлов данных
+    required_files = [
+        'dataset/movies.csv',
+        'dataset/ratings.csv',
+        'dataset/tags.csv',
+        'dataset/users.txt'
+    ]
+
+    for file_path in required_files:
+        if not os.path.exists(file_path):
+            print(f"Ошибка: Файл {file_path} не найден!")
+            exit(1)
+
+    generate_sql_script()

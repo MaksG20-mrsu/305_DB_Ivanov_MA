@@ -1,79 +1,43 @@
 #!/bin/bash
 
-# Скрипт инициализации базы данных movies_rating.db
-# Автоматически создает таблицы и заполняет их данными
+echo "=== Запуск процесса ETL ==="
+echo "Генерация SQL скрипта..."
 
-echo "Starting database initialization..."
-echo "Current directory: $(pwd)"
-
-# Проверка наличия каталога dataset
-if [ ! -d "dataset" ]; then
-    echo "Error: 'dataset' directory not found!"
-    echo "Please create 'dataset' directory and place data files there:"
-    echo "  - movies.txt"
-    echo "  - ratings.txt" 
-    echo "  - tags.txt"
-    echo "  - users.txt"
-    exit 1
-fi
-
-# Проверка наличия файлов данных
-missing_files=0
-for file in movies.txt ratings.txt tags.txt users.txt; do
-    if [ ! -f "dataset/$file" ]; then
-        echo "Error: Missing data file: dataset/$file"
-        missing_files=1
-    fi
-done
-
-if [ $missing_files -ne 0 ]; then
-    echo "Please make sure all data files are present in the dataset directory"
-    exit 1
-fi
-
-# Генерация SQL скрипта
-echo "Generating SQL script..."
+# Запуск Python скрипта для генерации SQL
 python3 make_db_init.py
 
-# Проверка успешности генерации SQL скрипта
-if [ $? -eq 0 ]; then
-    echo "SQL script generated successfully"
-else
-    echo "Error: Failed to generate SQL script"
+if [ $? -ne 0 ]; then
+    echo "Ошибка при генерации SQL скрипта!"
     exit 1
 fi
 
-# Проверка существования сгенерированного SQL файла
-if [ ! -f "db_init.sql" ]; then
-    echo "Error: SQL script 'db_init.sql' was not created"
-    exit 1
+echo "Создание базы данных..."
+
+# Удаление существующей базы данных (если есть)
+if [ -f "movies_rating.db" ]; then
+    rm movies_rating.db
+    echo "Старая база данных удалена."
 fi
 
 # Загрузка SQL скрипта в базу данных
-echo "Loading SQL script into database..."
 sqlite3 movies_rating.db < db_init.sql
 
-# Проверка успешности выполнения SQL скрипта
 if [ $? -eq 0 ]; then
-    echo "Database 'movies_rating.db' has been created and populated successfully!"
+    echo "База данных успешно создана и заполнена!"
+    echo "Файл: movies_rating.db"
     
-    # Дополнительная проверка - вывод информации о созданных таблицах
+    # Проверка содержимого базы данных
     echo ""
-    echo "Verifying database structure..."
-    echo "Tables in database:"
+    echo "Проверка созданных таблиц:"
     sqlite3 movies_rating.db ".tables"
     
     echo ""
-    echo "Table row counts:"
+    echo "Количество записей в таблицах:"
     sqlite3 movies_rating.db "SELECT 'movies: ' || COUNT(*) FROM movies;"
     sqlite3 movies_rating.db "SELECT 'users: ' || COUNT(*) FROM users;"
     sqlite3 movies_rating.db "SELECT 'ratings: ' || COUNT(*) FROM ratings;"
     sqlite3 movies_rating.db "SELECT 'tags: ' || COUNT(*) FROM tags;"
-    
 else
-    echo "Error: Failed to execute SQL script"
+    echo "Ошибка при создании базы данных!"
     exit 1
 fi
-
-echo ""
-echo "Database initialization completed!"
