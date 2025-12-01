@@ -27,7 +27,11 @@
   &quot;keyToString&quot;: {
     &quot;Python.make_db_init.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+<<<<<<< HEAD
+    &quot;git-widget-placeholder&quot;: &quot;Task06&quot;
+=======
     &quot;git-widget-placeholder&quot;: &quot;Task05&quot;
+>>>>>>> 285598d871cadf31b7eb8f616c05d57c7d0a9d4c
   }
 }</component>
   <component name="RunManager">
